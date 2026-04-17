@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Student Dashboard</title>
+    
+    <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
+    <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
+
+    <style>
+        /* Base styles */
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; margin: 0; padding: 20px; color: #333; }
+        h1 { text-align: center; color: #2c3e50; margin-bottom: 30px; }
+        
+        /* Responsive Grid */
+        .dashboard { display: grid; grid-template-columns: 1fr; gap: 20px; max-width: 1000px; margin: auto; }
+        @media (min-width: 768px) { .dashboard { grid-template-columns: 1fr 1fr; } }
+
+        /* Card Styles */
+        .card { background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); transition: transform 0.2s; }
+        .card:hover { transform: translateY(-2px); }
+        h2 { margin-top: 0; color: #4a90e2; font-size: 20px; border-bottom: 2px solid #f0f0f0; padding-bottom: 10px; }
+
+        /* General Forms */
+        .flex-form { display: flex; margin-bottom: 15px; }
+        .input-box { flex: 1; padding: 10px; border: 1px solid #e0e0e0; border-radius: 6px 0 0 6px; outline: none; font-size: 14px;}
+        .input-box:focus { border-color: #4a90e2; }
+        .action-btn { padding: 10px 15px; background: #4a90e2; color: white; border: none; border-radius: 0 6px 6px 0; cursor: pointer; font-weight: bold;}
+        .action-btn:hover { background: #357abd; }
+        
+        /* List Styles */
+        .item-list { list-style: none; padding: 0; margin: 0; }
+        .list-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid #f0f0f0; }
+        .delete-btn { color: #ff6b6b; text-decoration: none; font-size: 18px; cursor: pointer; border: none; background: none;}
+        .delete-btn:hover { color: #fa5252; transform: scale(1.2); }
+
+        /* Quill Editor Adjustment */
+        #editor-container { height: 150px; background-color: white; font-family: inherit;}
+        .ql-toolbar { border-radius: 8px 8px 0 0; }
+        .ql-container { border-radius: 0 0 8px 8px; font-size: 14px; }
+    </style>
+</head>
+<body>
+
+    <h1>🚀 My Student Dashboard</h1>
+    
+    <div class="dashboard">
+        <div class="card">
+            <h2>📅 Server Time</h2>
+            <p style="text-align: center; font-size: 28px; color: #2c3e50; font-weight: bold; margin: 20px 0;">{{ python_time }}</p> 
+            <p style="text-align: center; color: #777; font-size: 14px;">Provided by Python Flask</p>
+        </div>
+
+        <div class="card">
+            <h2>📝 To-Do List</h2>
+            <form action="/add" method="POST" class="flex-form">
+                <input type="text" name="task_input" class="input-box" placeholder="What do you need to study?" required>
+                <button type="submit" class="action-btn">Add</button>
+            </form>
+            <ul class="item-list">
+                {% for task in tasks %}
+                <li class="list-item">
+                    <span>{{ task }}</span>
+                    <a href="/delete/{{ loop.index0 }}" class="delete-btn" title="Delete Task">✖</a>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+
+        <div class="card">
+            <h2>📓 Rich Notes</h2>
+            <div id="editor-container"></div>
+        </div>
+
+        <div class="card">
+            <h2>🔔 Alarm Reminders</h2>
+            <div class="flex-form">
+                <input type="text" id="alarmText" class="input-box" placeholder="What is the alarm for?">
+                <input type="time" id="alarmTime" style="padding: 10px; border: 1px solid #e0e0e0; outline: none;">
+                <button onclick="setAlarm()" class="action-btn" style="border-radius: 0 6px 6px 0;">Set</button>
+            </div>
+            <ul id="alarmList" class="item-list">
+                </ul>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        // 1. RICH TEXT NOTES LOGIC (Quill.js)
+        // ==========================================
+        // Initialize the text editor with bold, italic, and numbering tools
+        var quill = new Quill('#editor-container', {
+            theme: 'snow',
+            placeholder: 'Write your detailed notes here...',
+            modules: {
+                toolbar: [
+                    ['bold', 'italic', 'underline'],
+                    [{ 'list': 'ordered'}, { 'list': 'bullet' }]
+                ]
+            }
+        });
+
+        // Load notes from previous session
+        if (localStorage.getItem('savedRichNotes')) {
+            quill.root.innerHTML = localStorage.getItem('savedRichNotes');
+        }
+
+        // Save automatically when you type
+        quill.on('text-change', function() {
+            localStorage.setItem('savedRichNotes', quill.root.innerHTML);
+        });
+
+
+        // ==========================================
+        // 2. ALARM & REMINDERS LOGIC
+        // ==========================================
+        let alarms = JSON.parse(localStorage.getItem('savedAlarms')) || [];
+
+        function setAlarm() {
+            const text = document.getElementById('alarmText').value;
+            const time = document.getElementById('alarmTime').value;
+
+            if (text === "" || time === "") {
+                alert("Please enter both a reminder and a time!");
+                return;
+            }
+
+            // Save the new alarm
+            alarms.push({ text: text, time: time, triggered: false });
+            localStorage.setItem('savedAlarms', JSON.stringify(alarms));
+            
+            document.getElementById('alarmText').value = "";
+            document.getElementById('alarmTime').value = "";
+            renderAlarms();
+        }
+
+        function deleteAlarm(index) {
+            alarms.splice(index, 1);
+            localStorage.setItem('savedAlarms', JSON.stringify(alarms));
+            renderAlarms();
+        }
+
+        function renderAlarms() {
+            const list = document.getElementById('alarmList');
+            list.innerHTML = ""; // Clear list
+            
+            alarms.forEach((alarm, index) => {
+                const li = document.createElement('li');
+                li.className = 'list-item';
+                
+                // Strike through if it already went off
+                const textStyle = alarm.triggered ? "text-decoration: line-through; color: #a0a0a0;" : "";
+                
+                li.innerHTML = `
+                    <span style="${textStyle}"><strong>${alarm.time}</strong> - ${alarm.text}</span>
+                    <button onclick="deleteAlarm(${index})" class="delete-btn">✖</button>
+                `;
+                list.appendChild(li);
+            });
+        }
+
+        // --- THE ALARM CLOCK ENGINE ---
+        // This checks the time every 10 seconds to see if an alarm should go off
+        setInterval(() => {
+            const now = new Date();
+            // Format current time to match the input (HH:MM)
+            const currentTime = now.getHours().toString().padStart(2, '0') + ":" + 
+                                now.getMinutes().toString().padStart(2, '0');
+
+            alarms.forEach((alarm) => {
+                if (alarm.time === currentTime && alarm.triggered === false) {
+                    // 1. Mark as triggered so it doesn't keep ringing
+                    alarm.triggered = true;
+                    localStorage.setItem('savedAlarms', JSON.stringify(alarms));
+                    renderAlarms();
+
+                    // 2. Play a sound
+                    const audio = new Audio('https://actions.google.com/sounds/v1/alarms/beep_short.ogg');
+                    audio.play();
+
+                    // 3. Show a pop-up
+                    alert("⏰ ALARM! Time for: " + alarm.text);
+                }
+            });
+        }, 10000);
+
+        // Render alarms when the page first loads
+        renderAlarms();
+    </script>
+
+</body>
+</html>
